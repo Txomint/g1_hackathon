@@ -8,6 +8,7 @@ The brief is in the root `README.md`. This folder holds the tools.
 |---|---|
 | `run_suite.py` | scores a recognizer against a folder of labelled stills |
 | `cases/` | where your labelled stills go |
+| `ambiguous/` | stills where you could not say what the right action was |
 | `report_template.md` | what you hand in — copy it to `report_<your team>.md` |
 
 ## Running another team's recognizer
@@ -88,6 +89,14 @@ Each still is fed to a freshly constructed recognizer five times in a row
 committing gets its chance to settle. A single still cannot tell you anything
 about how something behaves over *changing* frames, though — that part you have
 to test live.
+
+## Cases with no right answer
+
+Some frames have no single expected action — two people signalling different
+things, a hand halfway between two gestures, a gesture from someone in the
+background. They cannot go in `cases/`, because a folder name is a claim about
+the right answer. Put them in `ambiguous/` and write them up in the
+**Inaccuracy** section of the report instead.
 
 ## Ground rules
 

@@ -138,7 +138,9 @@ class HandTracker:
 
         # Largest hand first — the one most likely to be the operator's.
         hands.sort(key=lambda hd: hd.scale, reverse=True)
-        return Observation(hands=hands, t=t, dt=dt, width=w, height=h)
+        # A copy, because the engine draws the preview HUD onto `frame` after
+        # the recognizer has run.
+        return Observation(hands=hands, t=t, dt=dt, width=w, height=h, frame=frame.copy())
 
 
 __all__ = ["HandTracker", "EXTENDED_BELOW_DEG", "THUMB_EXTENDED_BELOW_DEG", "WRIST"]

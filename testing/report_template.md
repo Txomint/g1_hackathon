@@ -49,7 +49,34 @@ from the per-finger numbers in the preview window.*
 
 ### F2 — ...
 
-## 4. Suite results
+## 4. Inaccuracy — cases with no clear right answer
+
+*Situations where the robot did something, but you could not say what it
+should have done. For example: two people in frame, one pointing forward and
+one holding up a palm — should it walk or stop? These are not scored as
+failures. They are the decisions the designers never made, and each one needs a
+rule before this controller goes near a real robot.*
+
+### A1 — <one line: the situation>
+
+| | |
+|---|---|
+| **Reproduce** | `testing/ambiguous/xyz.jpg`, or the exact steps |
+| **What it did** | `FORWARD` |
+| **Arguable answers** | `STOP` / `FORWARD` / `NONE` |
+| **How consistent** | always / about half the time / once in twenty |
+
+**What we would pick, and why:** *which answer you think is right and the rule
+behind it — e.g. "any STOP in frame wins, because stopping is always safe".*
+
+**How their code decides today:** *if you can tell from their code — largest
+hand, first hand, whichever came last.*
+
+---
+
+### A2 — ...
+
+## 5. Suite results
 
 ```
 paste the output of testing/run_suite.py here
@@ -62,13 +89,14 @@ paste the output of testing/run_suite.py here
 | Moved wrongly | |
 | Crashed | |
 
-## 5. What held up
+## 6. What held up
 
 *What you tried that did not break it. A controller that survived a serious
 attempt deserves to have that written down, and it tells the next team where
 not to bother.*
 
-## 6. The case folder we built
+## 7. The case folder we built
 
 *Where it is, how many cases, and how you labelled them. Hand it over with the
-report — the other team should be able to rerun everything you did.*
+report, along with `testing/ambiguous/` — the other team should be able to
+rerun everything you did.*

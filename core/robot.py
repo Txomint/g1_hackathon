@@ -5,8 +5,9 @@ Two implementations of one interface:
 
     NullRobot   no-robot mode.  Accepts commands, moves nothing, remembers the
                 last one so the HUD can show what would have happened.
-    G1Driver    robot mode.  Stands the G1 up, enters FSM 801, and turns each
-                Action into LocoClient.Move() / StopMove().
+    G1Driver    robot mode.  Optionally stands the G1 up into FSM 801 (run.py
+                --standup), and turns each Action into LocoClient.Move() /
+                StopMove().
 
 The stand-up sequence is the one from g1_control/rnd_walk.py: Damp (FSM 1) ->
 StandUp (FSM 4) -> wait for mode 1 -> 0 -> Run (FSM 801).  FSM 801 is the entry

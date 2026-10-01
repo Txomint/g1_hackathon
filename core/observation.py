@@ -11,6 +11,10 @@ That is the point of the testing phase.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import numpy as np
 
 FINGERS = ("thumb", "index", "middle", "ring", "pinky")
 
@@ -50,9 +54,8 @@ class Hand:
     side: str
     """"left" or "right", as MediaPipe labels it.
 
-    This is the label for an *unmirrored* camera image.  The preview window is
-    mirrored so it feels like a mirror to the operator, which means the hand
-    drawn on the left of the screen is usually labelled "right".  Whether
+    This is the label for an *unmirrored* camera image.  Frames are not
+    mirrored unless you pass --mirror, and --mirror swaps the labels.  Whether
     MediaPipe's idea of left and right matches the operator's is something you
     should check yourself rather than trust.
     """
@@ -128,10 +131,19 @@ class Observation:
 
     dt: float = 0.0
     """Seconds since the previous frame.  Varies: expect ~0.05 s on a laptop
-    webcam and ~0.25 s or worse on the robot's camera."""
+    webcam and ~0.5 s on the robot's camera (--robot-hz, 2 by default)."""
 
     width: int = 0
     height: int = 0
+
+    frame: "np.ndarray | None" = field(default=None, repr=False, compare=False)
+    """The camera image this observation was computed from: a BGR uint8 numpy
+    array of shape (height, width, 3), already mirrored if --mirror is on.
+
+    For teams who want to run their own model instead of, or on top of, the
+    hand landmarks.  It is your own copy, so you may keep it across frames or
+    draw on it — nothing you do to it reaches the preview window.  None only
+    if an Observation is built by hand without one."""
 
     def hand(self, side: str) -> Hand | None:
         """The detected hand on the given side, or None."""

@@ -5,7 +5,10 @@ Launcher.  ── FROZEN FILE, DO NOT EDIT ──
     python3.10 run.py                        no-robot mode, laptop camera  (default)
     python3.10 run.py --image shots/         no-robot mode, stills from a path
     python3.10 run.py --robot                robot mode: robot camera, robot moves
+                                             (the G1 must already stand in FSM 801)
+    python3.10 run.py --robot --standup      robot mode, standing the G1 up from a squat
     python3.10 run.py --robot --local-camera robot mode: laptop camera, robot moves
+    python3.10 run.py --laptop-robot         same as --robot --local-camera
 
 `--help` lists everything.  No-robot mode is the default on purpose: you should
 never need the robot to develop a gesture.
@@ -56,12 +59,17 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="robot mode with the laptop webcam instead of the robot's camera",
     )
     mode.add_argument(
-        "--no-standup", action="store_true",
-        help="skip the stand-up sequence — the robot is already standing in FSM 801",
+        "--laptop-robot", action="store_true",
+        help="laptop webcam, real robot moves — shorthand for --robot --local-camera",
+    )
+    mode.add_argument(
+        "--standup", action=argparse.BooleanOptionalAction, default=False,
+        help="run the stand-up sequence first — only from a squat.  Without it "
+             "the robot must already be standing in FSM 801",
     )
     mode.add_argument(
         "--yes", action="store_true",
-        help="do not ask for confirmation before the robot stands up",
+        help="do not ask for confirmation before robot mode starts",
     )
 
     src = p.add_argument_group("input")
@@ -78,6 +86,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
                      help="how many hands the tracker may report at once")
     src.add_argument("--detect-hz", type=float, default=20.0,
                      help="upper bound on detections per second")
+    src.add_argument("--robot-hz", type=float, default=2.0,
+                     help="detections per second when reading the robot's camera "
+                          "(replaces --detect-hz there)")
     src.add_argument("--model", default=None,
                      help="path to hand_landmarker.task (default: models/)")
 
@@ -98,9 +109,12 @@ def build_source(args):
     return LaptopCamera(args.camera), False
 
 
-def confirm_robot_mode() -> None:
+def confirm_robot_mode(standup: bool) -> None:
     print("\n  ROBOT MODE")
-    print("  - the G1 must be in a squat, or already standing with --no-standup")
+    if standup:
+        print("  - --standup: the G1 must be in a SQUAT (a standing robot will go limp)")
+    else:
+        print("  - the G1 must already be standing in FSM 801 (use --standup from a squat)")
     print("  - clear at least 2 m around it")
     print("  - the remote controller must be on and within reach")
     print("  - motion starts DISARMED; press SPACE in the preview window to arm\n")
@@ -113,28 +127,31 @@ def build_robot(args):
         return NullRobot()
 
     driver = G1Driver(args.iface)
-    if args.no_standup:
+    if args.standup:
+        driver.stand_up()
+    else:
         fsm, mode = driver.fsm()
-        print(f"[robot] skipping stand-up — FSM {fsm} mode {mode}", flush=True)
+        print(f"[robot] no stand-up — FSM {fsm} mode {mode}", flush=True)
         if fsm != 801:
             raise SystemExit(
-                f"--no-standup given but the robot is in FSM {fsm}, not 801. "
-                "Drop --no-standup, or stand it up with g1_control/rnd.py first."
+                f"The robot is in FSM {fsm}, not 801, so it is not ready to walk. "
+                "If it is in a squat, rerun with --standup; otherwise stand it up "
+                "with g1_control/rnd.py first."
             )
-    else:
-        driver.stand_up()
     return driver
 
 
 def main() -> None:
     args = parse_args()
+    if args.laptop_robot:
+        args.robot = args.local_camera = True
     if args.local_camera and not args.robot:
         raise SystemExit("--local-camera only means something together with --robot")
     if args.image and args.robot:
         raise SystemExit("--image cannot drive the robot: there is nothing live to react to")
 
     if args.robot and not args.yes:
-        confirm_robot_mode()      # before anything touches the robot or its camera
+        confirm_robot_mode(args.standup)      # before anything touches the robot or its camera
 
     impl = _impl_module(args.impl)
     source, static = build_source(args)
@@ -145,7 +162,7 @@ def main() -> None:
         robot=robot,
         impl=impl,
         max_hands=args.max_hands,
-        detect_hz=args.detect_hz,
+        detect_hz=args.robot_hz if isinstance(source, RobotCamera) else args.detect_hz,
         mirror=args.mirror,
         display=not args.no_display,
         static=static,

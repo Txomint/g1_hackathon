@@ -71,9 +71,11 @@ recognised nothing. Phase 2 scores them separately, and a recognizer that says
 that cannot tell "the operator asked me to hold" from "I have no idea what I am
 looking at" is a controller nobody can trust.
 
-Need a motion that is not on the list? `custom_action("NAME", vx=..., vy=...,
-wz=...)` builds one. It goes through the same speed clamp as the built-ins, so
-you cannot use it to go faster.
+Need a motion that is not on the list? Define it in `participant/gestures.py`
+with `define_action("NAME", vx=..., vy=..., wz=...)`, in the section marked
+`YOUR CUSTOM ACTIONS START HERE` — as many as you like, each with its own name.
+Do not edit `core/actions.py`. Custom actions go through the same speed clamp
+as the built-ins, so you cannot use them to go faster.
 
 ### What ships working
 
@@ -113,18 +115,27 @@ python3.10 run.py --image shots/
 python3.10 run.py --robot --iface enp3s0
 ```
 
-The real G1. It stands up, enters its locomotion state, takes its camera feed
-from the camera in its own head, and walks when you tell it to.
+The real G1. It takes its camera feed from the camera in its own head and walks
+when you tell it to. The robot must **already be standing** in its locomotion
+state (FSM 801) — the program checks and refuses to start otherwise. To stand
+it up from a squat as part of the run, add `--standup`; never do that with a
+robot that is already standing, because the sequence starts by going limp.
+
+With the robot's camera the loop runs at **2 frames per second** (`--robot-hz`),
+not the 20 you are used to on a laptop, so `obs.dt` is about 0.5 s. Count how
+long a gesture has been held in seconds (`obs.t`), not in frames — a "hold for
+10 frames" rule takes half a second on your laptop and five on the robot.
 
 Motion starts **disarmed**. Nothing moves until a human presses `SPACE` in the
-preview window, and `e` disarms it again instantly. Robot mode runs in
-organiser-supervised slots only — see [Safety](#safety).
+preview window, and `e` disarms it again on the next frame — up to half a
+second at 2 Hz. Robot mode runs in organiser-supervised slots only — see
+[Safety](#safety).
 
 If the robot's own camera is awkward for a demo, keep the robot moving but read
-gestures from your laptop instead:
+gestures from your laptop instead. This runs at the normal 20 Hz:
 
 ```bash
-python3.10 run.py --robot --iface enp3s0 --local-camera
+python3.10 run.py --laptop-robot --iface enp3s0     # same as --robot --local-camera
 ```
 
 ---
@@ -193,6 +204,7 @@ python3.10 run.py --mirror                         # flip the preview
 python3.10 run.py --impl teams/blue/gestures.py    # run someone else's recognizer
 python3.10 run.py --robot --iface enp3s0           # the real robot
 python3.10 run.py --robot --local-camera           # robot moves, laptop watches
+python3.10 run.py --laptop-robot                   # same thing, one flag
 ```
 
 ### Keys in the preview window
@@ -216,13 +228,15 @@ your hand where it was.
 | `--robot` | off | drive the real robot |
 | `--iface` | `enp3s0` | network interface wired to the G1 |
 | `--local-camera` | off | with `--robot`: read gestures from the laptop webcam |
-| `--no-standup` | off | robot is already standing in FSM 801 |
-| `--yes` | off | skip the confirmation prompt before stand-up |
+| `--laptop-robot` | off | laptop webcam, real robot moves — shorthand for `--robot --local-camera` |
+| `--standup` | off | stand the robot up from a squat first. Off: it must already stand in FSM 801 |
+| `--yes` | off | skip the confirmation prompt before robot mode starts |
 | `--camera` | `0` | webcam index |
 | `--image PATH` | — | an image file or a folder of them |
 | `--mirror` | off | flip frames horizontally — **also swaps the left/right hand labels** |
 | `--max-hands` | `2` | how many hands the tracker may report at once |
 | `--detect-hz` | `20` | cap on detections per second |
+| `--robot-hz` | `2` | detections per second when reading the robot's camera (replaces `--detect-hz` there) |
 | `--impl` | `participant.gestures` | which recognizer to run |
 | `--no-display` | off | no preview window |
 | `--model` | `models/hand_landmarker.task` | alternative hand model |
@@ -253,6 +267,7 @@ g1_gesture_hackathon/
 ├── testing/                 phase 2
 │   ├── run_suite.py           score a recognizer against labelled stills
 │   ├── cases/                 your labelled stills go here
+│   ├── ambiguous/             stills with no single right answer
 │   └── report_template.md     what you hand in
 │
 ├── tools/check_setup.py     run this first
@@ -283,10 +298,10 @@ If one file gets crowded, add more next to it — `participant/filters.py`,
 `participant/poses.py`, whatever — and import them from `gestures.py`. Anything
 under `participant/` travels with your submission.
 
-Every file in `core/` opens with a **FROZEN FILE, DO NOT EDIT** banner. This is
-not bureaucracy: in phase 2 your recognizer is run inside someone else's
-checkout and theirs inside yours, and that only works if `core/` is identical
-everywhere. A gesture that only works because you widened a threshold in
+Every file in `core/`, plus `run.py` and `testing/run_suite.py`, opens with a
+**FROZEN FILE, DO NOT EDIT** banner. This is not bureaucracy: in phase 2 your
+recognizer is run inside someone else's checkout and theirs inside yours, and
+that only works if the frozen files are identical everywhere. A gesture that only works because you widened a threshold in
 `core/hand_tracker.py` will not work at all when it is judged.
 
 ---
@@ -303,6 +318,7 @@ everywhere. A gesture that only works because you widened a threshold in
 | `obs.t` | seconds since the program started |
 | `obs.dt` | seconds since the previous frame |
 | `obs.width`, `obs.height` | frame size in pixels |
+| `obs.frame` | the camera image itself (BGR numpy array) — for bringing your own model, see the optional section in `gestures.py` |
 
 ### `Hand`
 
@@ -417,6 +433,33 @@ You have three ways in:
    of cases where the robot moved when it should have held still or moved the
    wrong way. That last number is the one that matters.
 
+   It only knows the seven built-in actions, though: a custom action that
+   fires when it should not is counted as *wrong*, not as *moved wrongly*. If
+   the team you are testing has invented gestures, check the per-label table
+   for those by hand.
+
+### What a finding looks like
+
+![A face read as a hand](docs/img/example_phantom_hand.png)
+
+This frame came from the laptop camera during testing. There is no hand in it.
+MediaPipe drew a hand skeleton over the operator's face anyway: wrist on the
+chin, fingertips on the glasses and forehead. It labelled it `left` with a
+confidence of 0.88, and it read the thumb and pinky as up.
+
+Look at what the baseline's own filters make of that. A score of 0.88 clears
+`MIN_SCORE` (0.5) and a scale of 0.26 clears `MIN_SCALE` (0.05), so this
+"hand" is accepted as the operator's. The baseline returned `NONE` here only
+because thumb-and-pinky is not in its gesture table. A team that maps that pose
+to an action — or that accepts "nearly" a pose it knows — has a robot that walks
+when someone looks at it. The safety layer will not catch it either: it stops
+the robot when no hand is seen, and here a hand *is* seen.
+
+That is one finding, written up the way we want them all: the saved frame, what
+the recognizer did with it, and why. Save frames like this one with `s` and put
+them in `testing/cases/NONE/`, because a frame with no hand in it should never
+command anything.
+
 **We are not going to tell you what to test.** Working out what a camera-driven
 controller is likely to be bad at, and then building the smallest case that
 proves it, *is the exercise*. A team that arrives with a list of conditions they
@@ -432,9 +475,25 @@ Two ground rules:
   folder, or a written-down sequence anyone can repeat. "It felt unreliable" is
   not a finding.
 
+### Inaccuracy — when nobody knows the right answer
+
+Some of what you find will not be a bug, because there is no agreed correct
+action to compare against. Two people in frame, one pointing forward and one
+holding up a palm: should the robot walk or stop? A hand exactly halfway between
+two gestures. A gesture made by someone in the background while the operator's
+hand is down. The robot did *something*, and you cannot say it was wrong,
+because you are not sure what right would have been.
+
+Do not throw these away and do not force them into a case folder — the suite
+can only score frames that have one expected answer. Keep the frames in
+`testing/ambiguous/` and write each one up in the **Inaccuracy** section of the
+report: what the robot did, which actions could be argued for, which one you
+would pick and why. A situation the designers never made a decision about is a
+finding in its own right — often a more useful one than a misread finger.
+
 **You hand in** `testing/report_template.md`, filled in: what you tested, what
 you found, and for each failure the reproduction and what you think the
-underlying cause was. Losing marks for failures found in your own code is much
+underlying cause was, plus the ambiguous cases you could not score. Losing marks for failures found in your own code is much
 better than nobody finding them before the robot does.
 
 ---
@@ -450,6 +509,8 @@ A G1 is 1.3 m and 35 kg of humanoid and it walks. Treat it that way.
 - Two metres of clear floor around it, minimum. Nobody behind it.
 - The operator whose hands are being read stands where they can see the robot.
 - Motion starts disarmed. `SPACE` arms it, `e` disarms it, `q` quits and stops.
+  On the robot camera keys are read once per frame, so allow up to half a
+  second — the remote is faster.
 - If it does anything you did not expect, hit `e` first and work out why after.
 
 **What the harness enforces for you** (in `core/safety.py`, and not switchable
@@ -457,7 +518,9 @@ off from your code):
 
 - every velocity re-clamped to ±0.40 m/s forward, ±0.25 m/s sideways,
   ±0.50 rad/s turning, whatever your action claimed;
-- stop if no camera frame has arrived for 0.8 s;
+- stop if no camera frame has arrived for 0.8 s — with the laptop webcam. The
+  robot camera keeps handing out its last frame if its stream dies, so a frozen
+  feed is *not* caught: if the preview stops updating, press `e`;
 - stop if no hand has been seen anywhere in frame for 1.0 s, so a gesture cannot
   latch — walk out of shot and the robot halts on its own;
 - in robot mode, nothing at all until a human arms it;
@@ -481,7 +544,8 @@ failure mode that actually matters and the one phase 2 exists to find.
 | Everything reads as `NONE` | no pattern in the table matched | look at the per-finger table on the right — the tracker may disagree with you about which fingers are up |
 | Fingers flicker up/down | curl sitting right on the threshold | your problem to solve, and a good one |
 | `left` and `right` look swapped | `--mirror`, or a mirroring camera | drop `--mirror`, and verify rather than assume |
-| Robot stand-up times out after 15 s | robot was not in a squat | squat it manually, then rerun |
+| `The robot is in FSM …, not 801` | robot is not standing in locomotion mode | from a squat, rerun with `--standup` |
+| Robot stand-up times out after 15 s | `--standup` used when the robot was not in a squat | squat it manually, then rerun |
 | `FSM 801 not reached` | remote controller off | turn the remote on |
 | No frames from the robot camera | cable, wrong `--iface`, robot off | check `ip link show`; fall back to `--local-camera` |
 | Segfault or abort when the program exits | known cyclonedds 0.10.2 teardown bug | harmless, everything already ran — see the g1_control README |

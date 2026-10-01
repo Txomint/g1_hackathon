@@ -7,6 +7,8 @@ shown: what you asked for, and what the robot was actually given.
 """
 from __future__ import annotations
 
+import unicodedata
+
 import cv2
 import numpy as np
 
@@ -18,7 +20,16 @@ _SIDE_COLOR = {"left": (255, 120, 0), "right": (0, 120, 255), "unknown": (160, 1
 _KEYS_STRIP = 24   # height of the key-help strip along the bottom
 
 
+def _ascii(s: str) -> str:
+    """OpenCV's Hershey fonts only draw ASCII and turn anything else into '?'.
+    Map dashes to '-', strip accents (señal -> senal), '?' for the rest."""
+    s = s.replace("—", "-").replace("–", "-")
+    s = unicodedata.normalize("NFKD", s)
+    return "".join(c for c in s if not unicodedata.combining(c)).encode("ascii", "replace").decode()
+
+
 def _text(img, s, org, scale=0.55, color=(235, 235, 235), thick=1):
+    s = _ascii(s)
     cv2.putText(img, s, org, _FONT, scale, (0, 0, 0), thick + 2, cv2.LINE_AA)
     cv2.putText(img, s, org, _FONT, scale, color, thick, cv2.LINE_AA)
 

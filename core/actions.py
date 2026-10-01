@@ -84,12 +84,15 @@ def custom_action(
 
         SHUFFLE = custom_action("DIAGONAL_LEFT", vx=0.2, vy=0.15)
     """
+    # Normalise before checking, so "stop" or " STOP" cannot pass as a custom
+    # action that the HUD and the test suite would read as the built-in STOP.
+    name = name.strip().upper()
     if name in BUILTIN:
         raise ValueError(
             f"{name!r} is a built-in action — use actions.{name} instead of redefining it"
         )
     return Action(
-        name=name.upper(),
+        name=name,
         vx=max(-VX_MAX, min(VX_MAX, float(vx))),
         vy=max(-VY_MAX, min(VY_MAX, float(vy))),
         wz=max(-WZ_MAX, min(WZ_MAX, float(wz))),
