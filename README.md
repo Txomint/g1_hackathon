@@ -177,20 +177,118 @@ organiser.
 
 ### 4. Only for robot mode
 
-Robot mode needs the Unitree SDK, which is not on PyPI. The organisers' laptop
-already has it. If you are setting up your own:
+Robot mode needs the Unitree SDK, which is not on PyPI, and a wired connection
+to the robot. The organisers' laptop already has both. If you are setting up
+your own, follow the steps below. They are a condensed version of Unitree's
+official [G1 quick development guide](https://support.unitree.com/home/en/G1_developer/quick_development),
+which is worth reading if anything here does not match what you see.
+
+Unitree supports development on **Linux only** (they recommend Ubuntu 20.04;
+this repo is tested on Ubuntu 22.04 with Python 3.10). On Windows or macOS,
+see [Connecting from Windows or macOS](#connecting-from-windows-or-macos).
+
+#### 4a. Install the SDK
 
 ```bash
 git clone https://github.com/unitreerobotics/unitree_sdk2_python
-pip install -e unitree_sdk2_python
 pip install cyclonedds==0.10.2       # must match the SDK exactly
-python3.10 tools/check_setup.py --robot
+pip install -e unitree_sdk2_python
 ```
 
-Connect the robot over Ethernet. Its onboard computer is at `192.168.123.161`;
-give your interface a static address in the same subnet, e.g.
-`192.168.123.100/24`. `ip link show` tells you the interface name to pass to
-`--iface` (default `enp3s0`).
+If `pip install -e` fails with `Could not locate cyclonedds. Try to set
+CYCLONEDDS_HOME or CMAKE_PREFIX_PATH`, build cyclonedds 0.10 from source and
+point the SDK at it:
+
+```bash
+git clone https://github.com/eclipse-cyclonedds/cyclonedds -b releases/0.10.x ~/cyclonedds
+cd ~/cyclonedds && mkdir build install && cd build
+cmake .. -DCMAKE_INSTALL_PREFIX=../install
+cmake --build . --target install
+export CYCLONEDDS_HOME=~/cyclonedds/install
+cd - && pip install -e unitree_sdk2_python
+```
+
+#### 4b. Wire up the network
+
+1. Plug an Ethernet cable from your laptop into the robot (a USB-Ethernet
+   adapter is fine). The robot's onboard computer is at `192.168.123.161`.
+2. Find your interface name — this is what you pass to `--iface`
+   (default `enp3s0`; USB adapters usually look like `enx…`):
+
+   ```bash
+   ip link show
+   ```
+
+3. Give that interface a static address in the robot's subnet,
+   `192.168.123.X/24`. Unitree suggests `192.168.123.99`; anything unused that
+   is not `.161` works. Do **not** set a gateway on it.
+
+   Quick, until the next reboot or cable unplug:
+
+   ```bash
+   sudo ip addr add 192.168.123.99/24 dev enp3s0
+   ```
+
+   Permanent, with NetworkManager (Ubuntu desktop) — or do the same in
+   *Settings → Network → Wired → IPv4 → Manual*:
+
+   ```bash
+   nmcli con add type ethernet ifname enp3s0 con-name g1 \
+     ipv4.method manual ipv4.addresses 192.168.123.99/24 ipv6.method ignore
+   nmcli con up g1
+   ```
+
+4. Check the SDK is installed, the robot answers, and DDS gets through. The
+   last command only *reads* the robot's state — it does not move it — and
+   should print two numbers (e.g. `801 0`); `-1 -1` after ~10 s means the
+   SDK cannot reach the robot:
+
+   ```bash
+   python3.10 tools/check_setup.py --robot
+   ping -c 3 192.168.123.161
+   python3.10 -c "from core.g1_robot import G1Robot; b = G1Robot('enp3s0'); print(b.fsm_id(), b.fsm_mode())"
+   ```
+
+   A crash *after* the numbers are printed is the harmless cyclonedds
+   teardown bug (see [Troubleshooting](#troubleshooting)).
+
+`ping` working only proves the cable and the address. The SDK talks over DDS
+(UDP multicast on ports 7400+), so a firewall that allows ping can still block
+it — on Ubuntu, `sudo ufw allow from 192.168.123.0/24` if `ufw` is active.
+
+#### Connecting from Windows or macOS
+
+**No-robot mode works natively everywhere.** MediaPipe and OpenCV ship wheels
+for Windows, macOS (Intel and Apple Silicon) and Linux, so steps 1–3 are all
+you need for most of the day. On Windows, replace `python3.10` with
+`py -3.10` in every command.
+
+**Robot mode needs Linux.** Unitree does not support the SDK on Windows or
+macOS, and DDS discovery does not survive most of the networking layers those
+systems put in front of Linux. Options, best first:
+
+| Option | How | Notes |
+|---|---|---|
+| Use the organisers' laptop | — | Already set up. The default during robot slots. |
+| Boot Linux | Dual-boot, or a live Ubuntu 22.04 USB stick | Then follow 4a and 4b as written. Most reliable. |
+| Linux VM, **bridged** | VirtualBox / VMware / Parallels / UTM; set the VM's network adapter to *Bridged* onto the Ethernet port wired to the robot (or pass the USB-Ethernet adapter through to the VM), then do 4a and 4b *inside the VM* | Tested working. NAT mode will not work. On Apple Silicon use an ARM64 Ubuntu image. |
+| WSL2 (Windows) | Enable mirrored networking (`networkingMode=mirrored` under `[wsl2]` in `%UserProfile%\.wslconfig`, then `wsl --shutdown`), then do 4a and 4b inside WSL | Not confirmed working. Ping works, but inbound DDS traffic is dropped by Windows Firewall; if the FSM check in 4b prints `-1 -1`, add the inbound rule below. |
+| Docker Desktop (Windows/macOS) | — | Does not work: DDS multicast does not cross Docker Desktop's VM. |
+
+The Windows Firewall rule for WSL2 — opens only the DDS ports, only from the
+robot's subnet:
+
+```powershell
+New-NetFirewallRule -DisplayName "Unitree G1 DDS" -Direction Inbound -Protocol UDP `
+  -RemoteAddress 192.168.123.0/24 -LocalPort 7400-7500 -Action Allow
+# to undo: Remove-NetFirewallRule -DisplayName "Unitree G1 DDS"
+```
+
+Where the static address goes: on a bridged VM, on the VM's interface (step
+4b inside the VM), not the host's. On WSL2 in mirrored mode, WSL sees the
+wired adapter as `eth0`/`eth1` (check with `ip link show`); that is your
+`--iface`, and `sudo ip addr add 192.168.123.99/24 dev eth1` inside WSL has
+to be rerun every session.
 
 ---
 
@@ -549,7 +647,9 @@ failure mode that actually matters and the one phase 2 exists to find.
 | `FSM 801 not reached` | remote controller off | turn the remote on |
 | No frames from the robot camera | cable, wrong `--iface`, robot off | check `ip link show`; fall back to `--local-camera` |
 | Segfault or abort when the program exits | known cyclonedds 0.10.2 teardown bug | harmless, everything already ran — see the g1_control README |
-| Robot mode complains about `unitree_sdk2py` | SDK not installed | `pip install -e unitree_sdk2_python`; it is not on PyPI |
+| Robot mode complains about `unitree_sdk2py` | SDK not installed | see [Setup step 4a](#4a-install-the-sdk); it is not on PyPI |
+| `ping 192.168.123.161` fails | no static IP, wrong interface, or cable | redo [step 4b](#4b-wire-up-the-network); check `ip addr show <iface>` lists `192.168.123.X/24` |
+| `ping` works but the SDK gets nothing (FSM check prints `-1 -1`) | firewall dropping DDS UDP, or wrong `--iface` | allow UDP from `192.168.123.0/24`; on WSL2 see [Windows or macOS](#connecting-from-windows-or-macos) |
 
 ---
 
