@@ -25,6 +25,7 @@ day. The default mode uses your laptop's webcam and prints the action the robot
 - [The interface](#the-interface)
 - [Phase 1 — build](#phase-1--build)
 - [Phase 2 — break](#phase-2--break)
+- [Handing in](#handing-in)
 - [Safety](#safety)
 - [Troubleshooting](#troubleshooting)
 - [Where this comes from](#where-this-comes-from)
@@ -145,9 +146,13 @@ python3.10 run.py --laptop-robot --iface enp3s0     # same as --robot --local-ca
 ### 1. Get the code
 
 ```bash
-git clone <this repo url>
+git clone https://github.com/Txomint/g1_hackathon.git g1_gesture_hackathon
 cd g1_gesture_hackathon
 ```
+
+If you are going to hand in by pull request, fork the repository first and
+clone your fork instead — see [Handing in](#handing-in). Already cloned this
+one? That is fine too; the same section shows how to point it at your fork.
 
 ### 2. Install the vision stack
 
@@ -593,6 +598,138 @@ finding in its own right — often a more useful one than a misread finger.
 you found, and for each failure the reproduction and what you think the
 underlying cause was, plus the ambiguous cases you could not score. Losing marks for failures found in your own code is much
 better than nobody finding them before the robot does.
+
+---
+
+## Handing in
+
+### What to send
+
+| When | What | Where it lives |
+|---|---|---|
+| End of phase 1 | your recognizer | everything under `participant/` |
+| End of phase 2 | your report | `testing/report_<your team>.md` (copied from `testing/report_template.md`) |
+| End of phase 2 | your evidence | the stills in `testing/cases/` and `testing/ambiguous/` |
+
+Not wanted: anything in `core/`, `run.py` or the other frozen files (your work is
+judged against a clean copy of them anyway), the other team's code you dropped
+into `teams/`, and `captures/` — copy the frames that matter into
+`testing/cases/` or `testing/ambiguous/` first.
+
+There are two ways to hand in. Pick one per team and stick to it.
+
+### Option A — a pull request (preferred)
+
+A pull request (PR) is a request, made on GitHub, to look at the changes on one
+of your branches. Nobody merges it — it is just the way your team's work arrives
+with its full history attached, and the diff shows at a glance that you only
+touched the files you were meant to.
+
+You need a GitHub account per team. One person does the steps below; the others
+can be added as collaborators on the fork (*Settings → Collaborators*) if more
+than one laptop needs to push.
+
+**1. Fork the repository.** Open
+[github.com/Txomint/g1_hackathon](https://github.com/Txomint/g1_hackathon) and
+click **Fork** (top right) → **Create fork**. You now have your own copy at
+`github.com/<your-username>/g1_hackathon` that you can push to.
+
+**2. Get your fork onto your laptop.** If you have not cloned anything yet:
+
+```bash
+git clone https://github.com/<your-username>/g1_hackathon.git g1_gesture_hackathon
+cd g1_gesture_hackathon
+```
+
+If you already cloned the original and have been working in it, keep your work
+and just point the checkout at your fork:
+
+```bash
+git remote rename origin upstream
+git remote add origin https://github.com/<your-username>/g1_hackathon.git
+```
+
+**3. Work on a branch named after your team.** Not on `main`:
+
+```bash
+git switch -c team-<your team>          # e.g. team-red
+```
+
+**4. Commit only your files.** Add them by path rather than with `git add .`, so
+nothing frozen or borrowed slips in:
+
+```bash
+git add participant/
+git commit -m "Team red: phase 1 recognizer"
+
+# end of phase 2
+git add testing/report_red.md testing/cases/ testing/ambiguous/
+git commit -m "Team red: phase 2 report and cases"
+```
+
+`git status` before committing shows what is about to go in. If it lists
+anything under `core/`, `run.py` or `teams/`, leave it out.
+
+**5. Push the branch to your fork:**
+
+```bash
+git push -u origin team-red
+```
+
+GitHub asks for a username and password the first time: the password is a
+**personal access token**, not your account password (*Settings → Developer
+settings → Personal access tokens*, with `repo` scope). If the
+[GitHub CLI](https://cli.github.com) is installed, `gh auth login` sets this up
+for you.
+
+**6. Open the pull request.** Go to your fork on GitHub; a yellow banner offers
+**Compare & pull request** for the branch you just pushed. Otherwise use
+**Contribute → Open pull request**. Check the two ends before you click:
+
+- **base repository:** `Txomint/g1_hackathon`, **base:** `main`
+- **head repository:** `<your-username>/g1_hackathon`, **compare:** `team-red`
+
+Title it `Team red — phase 1` (or `phase 2`), say in the description who is on
+the team, and click **Create pull request**. With the GitHub CLI, the same thing
+is:
+
+```bash
+gh pr create --repo Txomint/g1_hackathon --base main \
+  --title "Team red — phase 1" --body "Team members: ..."
+```
+
+Check the **Files changed** tab: it should list only `participant/` (and, in
+phase 2, `testing/`) files.
+
+**Updating it.** Do not open a second PR for phase 2 or for a last-minute fix.
+Commit to the same branch and `git push` again — the open pull request picks up
+the new commits on its own. Whatever is on the branch at the deadline is what is
+judged.
+
+### Option B — email
+
+No GitHub account, or git is fighting you? Zip the same files and email them to
+the organisers at **[ttrebino@mondragon.edu](mailto:ttrebino@mondragon.edu)**, with your team name in the subject
+line.
+
+Linux / macOS, from the repository root:
+
+```bash
+zip -r team-red.zip participant/ testing/report_red.md testing/cases/ testing/ambiguous/ \
+  -x '*__pycache__*'
+```
+
+Windows (PowerShell), from the repository root:
+
+```powershell
+Compress-Archive -Path participant, testing\report_red.md, testing\cases, testing\ambiguous `
+  -DestinationPath team-red.zip
+```
+
+Unzip it somewhere else and look inside before you send it. Most mail servers
+stop at about 25 MB; if your stills push it over that, drop the duplicates, or
+share the zip via a cloud-drive link instead. If you resend, send the whole zip
+again — the newest email received before the deadline is what is judged.
 
 ---
 
