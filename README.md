@@ -603,12 +603,16 @@ better than nobody finding them before the robot does.
 
 ## Handing in
 
+Each team is given a number from 1 to 5 by the organisers, and the repository
+has a branch for each one: `team-1` … `team-5`. Everything below uses team 3 as
+the example — swap in your own number.
+
 ### What to send
 
 | When | What | Where it lives |
 |---|---|---|
 | End of phase 1 | your recognizer | everything under `participant/` |
-| End of phase 2 | your report | `testing/report_<your team>.md` (copied from `testing/report_template.md`) |
+| End of phase 2 | your report | `testing/report_team-N.md` (copied from `testing/report_template.md`) |
 | End of phase 2 | your evidence | the stills in `testing/cases/` and `testing/ambiguous/` |
 
 Not wanted: anything in `core/`, `run.py` or the other frozen files (your work is
@@ -620,9 +624,10 @@ There are two ways to hand in. Pick one per team and stick to it.
 
 ### Option A — a pull request (preferred)
 
-A pull request (PR) is a request, made on GitHub, to look at the changes on one
-of your branches. Nobody merges it — it is just the way your team's work arrives
-with its full history attached, and the diff shows at a glance that you only
+A pull request (PR) is a request, made on GitHub, to bring the commits on one
+branch into another. Yours goes from a branch on your own copy of the repository
+into **your team's branch** in the organisers' repository — never into `main`.
+It arrives with its full history, and the diff shows at a glance that you only
 touched the files you were meant to.
 
 You need a GitHub account per team. One person does the steps below; the others
@@ -632,39 +637,51 @@ than one laptop needs to push.
 **1. Fork the repository.** Open
 [github.com/Txomint/g1_hackathon](https://github.com/Txomint/g1_hackathon) and
 click **Fork** (top right) → **Create fork**. You now have your own copy at
-`github.com/<your-username>/g1_hackathon` that you can push to.
+`github.com/<your-username>/g1_hackathon` that you can push to. Leaving *Copy the
+`main` branch only* ticked is fine — step 3 gets your team branch from the
+original.
 
-**2. Get your fork onto your laptop.** If you have not cloned anything yet:
+**2. Get your fork onto your laptop**, with the original repository as a second
+remote called `upstream`. If you have not cloned anything yet:
 
 ```bash
 git clone https://github.com/<your-username>/g1_hackathon.git g1_gesture_hackathon
 cd g1_gesture_hackathon
+git remote add upstream https://github.com/Txomint/g1_hackathon.git
 ```
 
 If you already cloned the original and have been working in it, keep your work
-and just point the checkout at your fork:
+and just repoint the checkout:
 
 ```bash
 git remote rename origin upstream
 git remote add origin https://github.com/<your-username>/g1_hackathon.git
 ```
 
-**3. Work on a branch named after your team.** Not on `main`:
+`git remote -v` should now show `origin` → your fork and `upstream` →
+`Txomint/g1_hackathon`.
+
+**3. Switch to your team's branch.** Not `main`:
 
 ```bash
-git switch -c team-<your team>          # e.g. team-red
+git fetch upstream
+git switch -c team-3 upstream/team-3
 ```
+
+Uncommitted edits to `participant/` come with you when you switch. If git
+refuses because they would be overwritten, `git stash`, switch, then
+`git stash pop`.
 
 **4. Commit only your files.** Add them by path rather than with `git add .`, so
 nothing frozen or borrowed slips in:
 
 ```bash
 git add participant/
-git commit -m "Team red: phase 1 recognizer"
+git commit -m "Team 3: phase 1 recognizer"
 
 # end of phase 2
-git add testing/report_red.md testing/cases/ testing/ambiguous/
-git commit -m "Team red: phase 2 report and cases"
+git add testing/report_team-3.md testing/cases/ testing/ambiguous/
+git commit -m "Team 3: phase 2 report and cases"
 ```
 
 `git status` before committing shows what is about to go in. If it lists
@@ -673,7 +690,7 @@ anything under `core/`, `run.py` or `teams/`, leave it out.
 **5. Push the branch to your fork:**
 
 ```bash
-git push -u origin team-red
+git push -u origin team-3
 ```
 
 GitHub asks for a username and password the first time: the password is a
@@ -684,46 +701,49 @@ for you.
 
 **6. Open the pull request.** Go to your fork on GitHub; a yellow banner offers
 **Compare & pull request** for the branch you just pushed. Otherwise use
-**Contribute → Open pull request**. Check the two ends before you click:
+**Contribute → Open pull request**. GitHub fills in `main` as the base — **change
+it** to your team's branch, so the two ends read:
 
-- **base repository:** `Txomint/g1_hackathon`, **base:** `main`
-- **head repository:** `<your-username>/g1_hackathon`, **compare:** `team-red`
+- **base repository:** `Txomint/g1_hackathon`, **base:** `team-3`
+- **head repository:** `<your-username>/g1_hackathon`, **compare:** `team-3`
 
-Title it `Team red — phase 1` (or `phase 2`), say in the description who is on
+Title it `Team 3 — phase 1` (or `phase 2`), say in the description who is on
 the team, and click **Create pull request**. With the GitHub CLI, the same thing
 is:
 
 ```bash
-gh pr create --repo Txomint/g1_hackathon --base main \
-  --title "Team red — phase 1" --body "Team members: ..."
+gh pr create --repo Txomint/g1_hackathon --base team-3 --head <your-username>:team-3 \
+  --title "Team 3 — phase 1" --body "Team members: ..."
 ```
 
 Check the **Files changed** tab: it should list only `participant/` (and, in
-phase 2, `testing/`) files.
+phase 2, `testing/`) files. If it lists frozen files you never touched, the
+base is probably still `main` — edit the PR and switch it to `team-3`.
 
-**Updating it.** Do not open a second PR for phase 2 or for a last-minute fix.
-Commit to the same branch and `git push` again — the open pull request picks up
-the new commits on its own. Whatever is on the branch at the deadline is what is
-judged.
+**Updating it.** Do not open a second PR for a last-minute fix. Commit to the
+same branch and `git push` again — an open pull request picks up the new commits
+on its own. If your phase 1 PR has already been merged by the time you finish
+phase 2, push to the same branch and open a new PR the same way. Whatever has
+reached your team branch by the deadline is what is judged.
 
 ### Option B — email
 
 No GitHub account, or git is fighting you? Zip the same files and email them to
-the organisers at **[ttrebino@mondragon.edu](mailto:ttrebino@mondragon.edu)**, with your team name in the subject
+the organisers at **[ttrebino@mondragon.edu](mailto:ttrebino@mondragon.edu)**, with your team number in the subject
 line.
 
 Linux / macOS, from the repository root:
 
 ```bash
-zip -r team-red.zip participant/ testing/report_red.md testing/cases/ testing/ambiguous/ \
+zip -r team-3.zip participant/ testing/report_team-3.md testing/cases/ testing/ambiguous/ \
   -x '*__pycache__*'
 ```
 
 Windows (PowerShell), from the repository root:
 
 ```powershell
-Compress-Archive -Path participant, testing\report_red.md, testing\cases, testing\ambiguous `
-  -DestinationPath team-red.zip
+Compress-Archive -Path participant, testing\report_team-3.md, testing\cases, testing\ambiguous `
+  -DestinationPath team-3.zip
 ```
 
 Unzip it somewhere else and look inside before you send it. Most mail servers
